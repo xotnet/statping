@@ -12,20 +12,23 @@
 #include <chrono>
 #include <thread>
 
-void connect_net(const char* ip, const char* port, int* connRet, const unsigned short int protocol) { // 0 for TCP | 1 for UDP
+void connect_net(const char* ip, const char* port, int* conn, const unsigned short int protocol) { // 0 for TCP | 1 for UDP
 	#ifdef __WIN32
 		WSADATA wsa;
 		WSAStartup(MAKEWORD(2,2), &wsa);
 	#endif
-	int conn = -1;
-	if (protocol == 0) {conn = socket(AF_INET, SOCK_STREAM, 0);}
-	else if (protocol == 1) {conn = socket(AF_INET, SOCK_DGRAM, 0);}
+	int sock = -1;
+	if (protocol == 0) {sock = socket(AF_INET, SOCK_STREAM, 0);}
+	else if (protocol == 1) {sock = socket(AF_INET, SOCK_DGRAM, 0);}
+	if (sock < 0) {*conn = -1; return;}
+	const int enable = 1;
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&enable, sizeof(int));
 	struct sockaddr_in addr;
 	addr.sin_addr.s_addr = inet_addr(ip);
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(atoi(port));
-	if (connect(conn, (struct sockaddr*)&addr, sizeof(addr)) < 0) {conn = -1;}
-	*connRet = conn;
+	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {*conn = -1; return;}
+	*conn = sock;
 }
 
 int close_net(int conn) {
@@ -51,16 +54,15 @@ void timeOutCheck(int howLongMS, bool* timedOut) {
 
 int connectWithTimeOut(int timeoutMS, char* ip, char* port) {
 	bool timedOut = false;
-	int passed = 0;
-	int conn = -1;
+	int conn = -2;
 	std::thread timeOutCheckThread(timeOutCheck, timeoutMS, &timedOut);
 	timeOutCheckThread.detach();
 	std::thread connectThread(connect_net, ip, port, &conn, 0);
 	connectThread.detach();
-	while (!timedOut && passed<timeoutMS && conn < 0) {
+	while (!timedOut && conn < 0) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		passed = passed+10;
 	}
+	timedOut = false;
 	return conn;
 }
 
@@ -100,7 +102,7 @@ int main(int argc, char** argv) {
 		bool success = false;
 		std::thread timerThread(timer, &ping, &connected);
 		timerThread.detach();
-		int conn = connectWithTimeOut(2000, argv[1], argv[2]);
+		int conn = connectWithTimeOut(3000, argv[1], argv[2]);
 		if (conn > 0) {
 			std::cout << setcolor("Connected ", 1) << setcolor(argv[1], 4) << ':' << argv[2] << setcolor(" Ping: ", 1) << setcolor(std::to_string(ping)) << setcolor("ms ") << "\n";
 			success = true;
@@ -109,7 +111,7 @@ int main(int argc, char** argv) {
 		}
 		connected = true;
 		close_net(conn);
-		if (success) {std::this_thread::sleep_for(std::chrono::milliseconds(1500));}
+		if (success) {std::this_thread::sleep_for(std::chrono::milliseconds(2000));}
 		success = false;
 	}
 }
