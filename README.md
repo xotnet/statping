@@ -1,4 +1,4 @@
-# statping
+# **STATPING**
 **Miltiplatform ultrafast and lite tool for check is server online written on C++**
 
 
