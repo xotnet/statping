@@ -17,17 +17,15 @@ void connect_net(const char* ip, const char* port, int* conn, const unsigned sho
 		WSADATA wsa;
 		WSAStartup(MAKEWORD(2,2), &wsa);
 	#endif
-	int sock = -1;
+	int sock = 0;
 	if (protocol == 0) {sock = socket(AF_INET, SOCK_STREAM, 0);}
 	else if (protocol == 1) {sock = socket(AF_INET, SOCK_DGRAM, 0);}
-	if (sock < 0) {*conn = -1; return;}
-	const int enable = 1;
-	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&enable, sizeof(int));
+	if (sock < 0) {*conn = -3; return;}
 	struct sockaddr_in addr;
 	addr.sin_addr.s_addr = inet_addr(ip);
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(atoi(port));
-	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {*conn = -1; return;}
+	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {*conn = -4; return;}
 	*conn = sock;
 }
 
@@ -39,12 +37,11 @@ int close_net(int conn) {
 	#endif
 }
 
-void timer(int* ping, bool* connected) {
-	while (!*connected) {
+void timer(int* ping, int* conn) {
+	while (*conn < 1) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		*ping = *ping + 1;
 	}
-	*ping = 0;
 }
 
 void timeOutCheck(int howLongMS, bool* timedOut) {
@@ -59,10 +56,9 @@ int connectWithTimeOut(int timeoutMS, char* ip, char* port) {
 	timeOutCheckThread.detach();
 	std::thread connectThread(connect_net, ip, port, &conn, 0);
 	connectThread.detach();
-	while (!timedOut && conn < 0) {
+	while (!timedOut && conn < 1) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
-	timedOut = false;
 	return conn;
 }
 
@@ -91,27 +87,44 @@ std::string setcolor(std::string input, int color=0) {
 	#endif
 }
 
+std::string resolve_net(const char* domain, const char* port) {
+	#ifdef __WIN32
+		WSADATA wsaData;
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
+	#endif
+	struct addrinfo hints, *res;
+	memset(&hints, 0, sizeof hints);
+	getaddrinfo(domain, port, &hints, &res);
+	struct sockaddr_in* addr = (struct sockaddr_in*)res->ai_addr;
+	char ipstr[INET_ADDRSTRLEN];
+	inet_ntop(res->ai_family, &addr->sin_addr, ipstr, sizeof(ipstr));
+	return ipstr;
+}
+
 int main(int argc, char** argv) {
 	if (argc != 3) {
-		std::cout << "Usage: statping IP PORT\n";
+		std::cout << setcolor("Usage: statping IP PORT", 2) << setcolor("\n");
 		return -1;
 	}
+	std::string address = argv[1];
+	address = resolve_net(&address[0], argv[2]);
+	std::cout << setcolor("Resolved ", 4) << address << setcolor("\n");
+	bool slash = false;
 	while (true) {
+		char slashchar = '/';
+		if (slash == true) {slashchar = '\\'; slash = false;}
+		else {slashchar = '/'; slash = true;}
 		int ping = 0;
-		bool connected = false;
-		bool success = false;
-		std::thread timerThread(timer, &ping, &connected);
+		int conn = 0;
+		std::thread timerThread(timer, &ping, &conn);
 		timerThread.detach();
-		int conn = connectWithTimeOut(3000, argv[1], argv[2]);
+		conn = connectWithTimeOut(3000, &address[0], argv[2]);
 		if (conn > 0) {
-			std::cout << setcolor("Connected ", 1) << setcolor(argv[1], 4) << ':' << argv[2] << setcolor(" Ping: ", 1) << setcolor(std::to_string(ping)) << setcolor("ms ") << "\n";
-			success = true;
+			std::cout << setcolor("[", 1) << slashchar << "] Connected " << setcolor(&address[0], 4) << ':' << argv[2] << setcolor(" Ping: ", 1) << setcolor(std::to_string(ping)) << setcolor("ms ") << "\n";
 		} else {
-			std::cout << setcolor("Connection timed out reached", 2) << setcolor("\n");
+			std::cout << setcolor("[", 2) << slashchar << "] Connection timed out reached" << setcolor("\n");
 		}
-		connected = true;
 		close_net(conn);
-		if (success) {std::this_thread::sleep_for(std::chrono::milliseconds(2000));}
-		success = false;
+		if (conn > 0) {std::this_thread::sleep_for(std::chrono::milliseconds(1500));}
 	}
 }
