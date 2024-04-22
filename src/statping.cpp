@@ -94,7 +94,7 @@ std::string resolve_net(const char* domain, const char* port) {
 	#endif
 	struct addrinfo hints, *res;
 	memset(&hints, 0, sizeof hints);
-	getaddrinfo(domain, port, &hints, &res);
+	if (getaddrinfo(domain, port, &hints, &res) != 0) {return "DNS server error";}
 	struct sockaddr_in* addr = (struct sockaddr_in*)res->ai_addr;
 	char ipstr[INET_ADDRSTRLEN];
 	inet_ntop(res->ai_family, &addr->sin_addr, ipstr, sizeof(ipstr));
@@ -106,8 +106,7 @@ int main(int argc, char** argv) {
 		std::cout << setcolor("Usage: statping IP PORT", 2) << setcolor("\n");
 		return -1;
 	}
-	std::string address = argv[1];
-	address = resolve_net(&address[0], argv[2]);
+	std::string address = resolve_net(argv[1], argv[2]);
 	std::cout << setcolor("Pinging ", 4) << setcolor(argv[1], 3) << setcolor(" Resolved ", 4) << setcolor(address, 3) << setcolor("\n");
 	bool slash = false;
 	while (true) {
