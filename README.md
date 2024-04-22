@@ -1,5 +1,5 @@
 # statping
-Miltiplatform ultrafast and lite tool for check is server online written on C++
+**Miltiplatform ultrafast and lite tool for check is server online written on C++**
 
 
 ![alt text](img/image.png)
