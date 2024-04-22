@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
 	}
 	std::string address = argv[1];
 	address = resolve_net(&address[0], argv[2]);
-	std::cout << setcolor("Resolved ", 4) << address << setcolor("\n");
+	std::cout << setcolor("Pinging ", 4) << setcolor(argv[1], 3) << setcolor(" Resolved ", 4) << setcolor(address, 3) << setcolor("\n");
 	bool slash = false;
 	while (true) {
 		char slashchar = '/';
